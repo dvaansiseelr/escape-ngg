@@ -1,10 +1,9 @@
 <?php
 /**
- * Plugin Name: Escape NextGen Gallery
+ * Plugin Name: Escape NextGen Gallery New
  * Description: Converts NextGen Galleries to native WordPress Galleries. Read code for instructions.
- * Author: Konstantin Kovshenin
- * License: GPLv3
- * Version: 1.0
+ * Author: Daniel Vasser
+ * Version: 1.0.1
  *
  * This plugin will scan through all your posts and pages for the [nggallery] shortcode. 
  * It will loop through all images associated with that gallery and recreate them as native 
@@ -156,10 +155,22 @@ class Escape_NextGen_Gallery {
 	public function process_post( $post_id ) {
 		global $wpdb;
 		$post = get_post( $post_id );
-		$matches = null;
+		//$matches = null;
 
-		preg_match( '#nggallery id(\s)*="?(\s)*(?P<id>\d+)#i', $post->post_content, $matches );
-		if ( ! isset( $matches['id'] ) ) {
+		//preg_match( '#ngg id(\s)*="?(\s)*(?P<id>\d+)#i', $post->post_content, $matches );
+
+		$dat = array();
+        preg_match("/\[ngg (.+?)\]/", $post->post_content, $dat);
+
+        $dat = array_pop($dat);
+        $dat= explode(" ", $dat);
+        $matches = array();
+        foreach ($dat as $d){
+            list($opt, $val) = explode("=", $d);
+            $matches[$opt] = trim($val, '"');
+        }
+
+		if ( ! isset( $matches['ids'] ) ) {
 			$this->warnings[] = sprintf( "Could not match gallery id in %d", $post->ID );
 			return;
 		}
@@ -174,7 +185,7 @@ class Escape_NextGen_Gallery {
 			'fields' => 'ids',
 		) );
 
-		$gallery_id = $matches['id'];
+		$gallery_id = $matches['ids'];
 		$path = $wpdb->get_row( "SELECT * FROM {$wpdb->prefix}ngg_gallery WHERE gid = ". intval( $gallery_id ), ARRAY_A  );
 		$images = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}ngg_pictures WHERE galleryid = ". intval( $gallery_id ) . " ORDER BY sortorder, pid ASC" );
 
@@ -234,7 +245,7 @@ class Escape_NextGen_Gallery {
 		// Construct the [gallery] shortcode
 		$attr = array();
 		if ( $existing_attachments_ids )
-			$attr['exclude'] = implode( ',', $existing_attachments_ids );
+			$attr['ids'] = implode( ',', $existing_attachments_ids );
 
 		$gallery = '[gallery';
 		foreach ( $attr as $key => $value )
@@ -243,7 +254,7 @@ class Escape_NextGen_Gallery {
 
 		// Booyaga!
 		$pristine_content = $post->post_content;
-		$post->post_content = preg_replace( '#\[nggallery[^\]]*\]#i', $gallery, $post->post_content );
+		$post->post_content = preg_replace( '#\[ngg[^\]]*\]#i', $gallery, $post->post_content );
 		$post->post_content = apply_filters( 'engg_post_content', $post->post_content, $pristine_content, $attr, $post, $gallery );
 		wp_update_post( $post );
 		$this->posts_count++;
@@ -257,7 +268,7 @@ class Escape_NextGen_Gallery {
 	 **/
 	public function get_post_ids( $limit = -1 ) {
 		$args = array(
-			's'           => '[nggallery',
+			's'           => '[ngg',
 			'post_type'   => array( 'post', 'page' ),
 			'post_status' => 'any',
 			'nopaging'    => true,
